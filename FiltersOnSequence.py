@@ -2,12 +2,11 @@
 #importacao do matplotlib nao funciona, pode ser util para fazer graficos diferentes
 import cv2 as cv
 import numpy as np
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 #Le a imagem, reduz e faz copia grayscale
-img = cv.imread('teste.tif')
-img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
-
+img = cv.imread('/Users/Gabiru/Documents/Digimetal_2/2018.07.03 - A28- 12X - esc .tif')
+img_ = cv.resize(img, (0,0), fx=.4, fy=.4)
 #imagem que sera usada pelo proximo filtro: img_ e original: img
 filtered_ = img_
 #variavel para undo
@@ -164,9 +163,13 @@ def CannyKernel (kernel_size):
     #atualiza variavel global
     global kernel_size_
     global filtered_
-    kernel_size_ = kernel_size
+    if kernel_size%2: #se for impar = 1, ou seja, True
+        kernel_size_ = kernel_size
+    else: #se for par, será = 0, ou seja, False
+        kernel_size_ = kernel_size + 1
     #aplica filtro de blur
-    img_blur = cv.blur(img_, (kernel_size_,kernel_size_))
+    #img_blur = cv.blur(img_, (kernel_size_,kernel_size_))
+    img_blur = cv.GaussianBlur(img_,(kernel_size_,kernel_size_),0)
     #aplica canny com imagem borrada
     detected_edges = cv.Canny(img_blur, low_threshold_, low_threshold_*ratio_, kernel_size_)
     #abre a janela e printa os valores
@@ -512,9 +515,9 @@ def Denoise ():
 
 #*************************************MeanShift*************************************
 #maximos
-max_color = 50; max_spatial = 50; 
+max_color = 50; max_spatial = 50
 #variaveis para Filtro
-color_ = 21; spatial_ = 21; 
+color_ = 21; spatial_ = 21
 
 def MeanShiftColor(color):
     window_name ="Mean Shift"
@@ -573,8 +576,133 @@ def SaveImage():
     cv.imwrite(nomearquivo+".jpg",img_)
     print ("Imagem salva como: "+nomearquivo+".jpg")
 
-#*************************************Find Contours*************************************
+#*************************************Check Ilumination*************************************
+#Mede cor do substrato e sobrestrato
+def CorSobrestratoEsq(imagem):    #Corta a escala da imagem e tira as suas medidas
+    imagem = cv.resize(imagem, (0,0), fx=0.4, fy=0.4)
+    try:
+        imagem = cv.cvtColor(imagem, cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    y=0; x=25; h=100; w=200
+    crop = imagem[y:y+h, x:x+w]
+    intensidadeMediana1 = np.median(crop)
+    return intensidadeMediana1
 
+def CorSubstratoDir(imagem):    #Corta a escala da imagem e tira a mediana de cor
+    #imagem = cv.resize(imagem, (0,0), fx=0.4, fy=0.4)
+    try:
+        imagem = cv.cvtColor(imagem, cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    y=520; x=600; h=100; w=200
+    crop = imagem[y:y+h, x:x+w]
+    intensidadeMediana2 = np.median(crop)
+    return intensidadeMediana2
+
+def CorSobrestratoDir(imagem):    #Corta a escala da imagem e tira as suas medidas
+    imagem = cv.resize(imagem, (0,0), fx=0.4, fy=0.4)
+    try:
+        imagem = cv.cvtColor(imagem, cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    y=0; x=600; h=100; w=200
+    crop = imagem[y:y+h, x:x+w]
+    intensidadeMediana2 = np.median(crop)
+    return intensidadeMediana2
+
+def CorSubstratoEsq(imagem):    #Corta a escala da imagem e tira a mediana de cor
+    #imagem = cv.resize(imagem, (0,0), fx=0.4, fy=0.4)
+    try:
+        imagem = cv.cvtColor(imagem, cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    y=420; x=25; h=100; w=200
+    crop = imagem[y:y+h, x:x+w]
+    intensidadeMediana1 = np.median(crop)
+    return intensidadeMediana1
+
+def DivideImage(imagem):
+    esq = imagem[:,:imagem.shape[1]]
+    direi = imagem[:,imagem.shape[1]:]
+    return esq,direi
+
+def CheckIlumination(imagem):
+    sobreDif=CorSobrestratoDir(imagem)-CorSobrestratoEsq(imagem)
+    subDif=CorSubstratoEsq(imagem)-CorSubstratoEsq(imagem)
+    if abs(sobreDif) > 10 or abs(subDif) >10:
+        print("diferença Sobre: ",sobreDif)
+        print("diferença Sub: ",subDif)
+        return 1
+    else:
+        print("Nao ha diferenca de luz imagem:",sobreDif,subDif)
+        return 0
+
+#*************************************Equaliza Histograma*************************************
+#Nao esta transformando em cinza
+def EqualizaHistograma(imagem):
+    try:
+        equalizada = cv.cvtColor(imagem,cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    equalizada = cv.equalizeHist(imagem)
+    return equalizada
+    
+#*************************************Contraste e Brilho*************************************
+max_contraste = 50; max_brilho = 100
+contraste_ = 1; brilho_ = 50;
+
+def Contraste(contraste):
+    window_name ="Contraste e Brilho"
+    global filtered_
+    global contraste_
+    contraste_ = contraste/10.0
+    #aplica filtro com nova variavel
+    shifted = cv.convertScaleAbs(img_, contraste,contraste_,brilho_)
+    #abre a janela e printa os valores
+    cv.imshow(window_name, filtered_)
+    print ("contraste: "+str(contraste_))
+    print ("brilho: "+str(brilho_))
+    print ("--------------")
+    filtered_ = shifted
+
+def Brilho(brilho):
+    window_name ="Contraste e Brilho"
+    global filtered_
+    global brilho_
+    brilho_ = brilho-50
+    #aplica filtro com nova variavel
+    shifted = cv.convertScaleAbs(img_, brilho,contraste_,brilho_)
+    #abre a janela e printa os valores
+    cv.imshow(window_name, shifted)
+    print ("contraste: "+str(contraste_))
+    print ("brilho: "+str(brilho_))
+    print ("--------------")
+    #salva o filtro aplicado na variavel temporaria
+    filtered_ = shifted
+
+
+def ConstrasteBrilho():
+    global img_
+    window_name ="Contraste e Brilho"
+    cv.namedWindow(window_name)
+    cv.createTrackbar("Constraste", window_name , 0, max_contraste, Contraste)
+    cv.createTrackbar("Brilho", window_name , 0, max_brilho, Brilho)
+    #abre a janela e printa os valores
+    print ("--Contraste e Brilho--")
+    #atualiza imagem global e fecha janela
+    k = cv.waitKey()
+    #se apertar esc nao salva, qualquer outro botao salva
+    if k == 27:
+        cv.destroyWindow(window_name)
+        Interface()
+    else:
+        img_1 = img_
+        img_ = filtered_
+        cv.destroyWindow(window_name)
+        Interface()
+
+#*************************************Find Contours*************************************
 def IsolateWhiteAreas():
     global s1
     global img_
@@ -613,6 +741,7 @@ def FindContours():
     #erosion remove os pixels da borda
     erosion = cv.erode(img_,kernel,iterations = 1)
     #Rotular e classificar as areas na imagem
+    cv.findContours()
     img, contours, hierarchy= cv.findContours(erosion,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
     cnt = sorted(contours,key=cv.contourArea, reverse=True)
     cv.drawContours(img_, cnt, 0, (100,255,0), 3)
@@ -648,6 +777,16 @@ def FindContours():
 
     #aplica watershed
 
+def Histograma(imagem):
+    try:
+        imagem = cv.cvtColor(img_, cv.COLOR_BGR2GRAY)
+    except:
+        pass
+    hist = cv.calcHist(imagem,[1],None,[256],[0,256])
+    plt.hist(imagem.ravel(),256,[0,256]); plt.show()
+    cv.waitKey()
+
+
 #*************************************INTERFACE*************************************
 def  Interface():
     global img_
@@ -656,8 +795,11 @@ def  Interface():
     winname = "Menu"
     cv.imshow(winname, img_)
     k = cv.waitKey()
-    if k == 49:        #Se apertar 1: Isolate White Areas
-        IsolateWhiteAreas()
+    if k == 27:      #Se apertar ESC: sai do programa
+        SaveImage()
+        cv.destroyWindow("Menu")
+    elif k == 49:        #Se apertar 1: Ajuste de Contraste e Brilho
+        ConstrasteBrilho()
         cv.destroyWindow("Menu")
     elif k == 50:      #Se apertar 2: Filtro de Ruidos
         Denoise()
@@ -680,36 +822,40 @@ def  Interface():
     elif k == 56:      #Se apertar 8: Mean Shift Blur
         MeanShift()
         cv.destroyWindow("Menu")
-    elif k == 27:      #Se apertar ESC: sai do programa
-        SaveImage()
-        cv.destroyWindow("Menu")
-    elif k == 105:     #Se apertar I: Inverter
-        img_ = cv.bitwise_not(img_)
-        cv.destroyWindow("Menu")
-    elif k == 122:     #Se apertar Z: Desfazer
-        img_= img_1
-        cv.destroyWindow("Menu")
     elif k == 97:      #Se apertar A: And Logico
         try:
             img_ = cv.add(img_,s1)
         except:
             print("Não pode somar cinza com colorido")
         cv.destroyWindow("Menu")
-    elif k == 114:     #Se apertar R: Resetar
-        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+    elif k == 101:      #Se apertar E: Equaliza Histograma
+        img_1 = img_
+        img_ = EqualizaHistograma(img_)
         cv.destroyWindow("Menu")
     elif k == 102:      #Se apertar F: Find Contour
         FindContours()
-    elif k == 109:     #Se apertar M: Memorizar
-        s1 = img_
-        print ("imagem salva em S1")
-        cv.destroyWindow("Menu")
     elif k == 103:     #Se apertar G: Grayscale
         try:
             img_1 = img_
             img_ = cv.cvtColor(img_, cv.COLOR_BGR2GRAY)
         except :
             print ("Já está em Grayscale.")
+        cv.destroyWindow("Menu")
+    elif k == 104:      #Se apertar H: Mostra Histogramas
+        Histograma(img_)
+        cv.destroyWindow("Menu")
+    elif k == 105:     #Se apertar I: Inverter
+        img_ = cv.bitwise_not(img_)
+        cv.destroyWindow("Menu")
+    elif k == 109:     #Se apertar M: Memorizar
+        s1 = img_
+        print ("imagem salva em S1")
+        cv.destroyWindow("Menu")
+    elif k == 114:     #Se apertar R: Resetar
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        cv.destroyWindow("Menu")
+    elif k == 122:     #Se apertar Z: Desfazer
+        img_= img_1
         cv.destroyWindow("Menu")
     else:              #Se apertar qualquer tecla: imprime a tecla 
         print("Selecione um comando válido! Você digitou: "+str(k))

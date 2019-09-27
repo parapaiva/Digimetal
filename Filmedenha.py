@@ -4,7 +4,7 @@ import numpy as np
 import statistics
 import math
 #Le a imagem, reduz e faz copia grayscale
-img = cv.imread('teste.tif')
+img = cv.imread('/Users/Gabiru/Documents/Digimetal/2018.07.03 - A28- 12X - esc .tif')
 img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
 #menu da interface, imagem nao esta funcionando por isso nao esta sendo chamada
 menu = cv.imread("menu.jpg")
@@ -72,24 +72,34 @@ def CalculoImagemSemDesenho(imagem):    #Fornece medidas da maior area da imagem
     a = cv.contourArea(cnt[0])
     return a,x,y,w,h
 
-def CalculoImagem(imagem):      #Fornece medidas da maior area da imagem
+def CalculoImagem(imagem,color="green"):      #Fornece medidas da maior area da imagem
     global img_
     img, contorno_baixo, hierarchy= cv.findContours(imagem,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
     #Organiza imagem por area, da maior para menor
     cnt = sorted(contorno_baixo,key=cv.contourArea, reverse=True)
     #Desenha Contorno na imagem principal
-    cv.drawContours(img_, cnt, 0, (100,255,0), )
+    if color == "green":
+        cv.drawContours(img_, cnt, 0, (100,255,0), )
+    elif color == "red":
+        cv.drawContours(img_,cnt,0,(0,100,255))
+    elif color == "blue":
+        cv.drawContours(img_,cnt,0,(255,0,100))
     x,y,w,h = cv.boundingRect(cnt[0])
     a = cv.contourArea(cnt[0])
     return a,x,y,w,h
 
-def CalculoImagemPeq(imagem):       #Fornece medidas da 2a maior area da imagem
+def CalculoImagemPeq(imagem,color="green"):       #Fornece medidas da 2a maior area da imagem
     global img_
     img, contorno_baixo, hierarchy= cv.findContours(imagem,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
     #Organiza imagem por area, da maior para menor
     cnt = sorted(contorno_baixo,key=cv.contourArea, reverse=True)
     #Desenha Contornos na imagem principal
-    cv.drawContours(img_, cnt, 1, (100,255,0), )
+    if color == "green":
+        cv.drawContours(img_, cnt, 1, (100,255,0), )
+    elif color == "red":
+        cv.drawContours(img_,cnt,1,(0,100,255))
+    elif color == "blue":
+        cv.drawContours(img_,cnt,1,(255,0,100))
     x,y,w,h = cv.boundingRect(cnt[1])
     a = cv.contourArea(cnt[1])
     return a,x,y,w,h
@@ -116,11 +126,12 @@ def MediaDeLados(imagem): #Informa qual o y inicial, y final e a angulacao do su
     img_direi = imagem[:,0:a]
     img_esque = imagem[:,-a:-1]
     #Nao esta mostrando os lados da imagem que estao sendo usado para tracar a reta
-        #cv.imshow("Faixa lida na esquerda",img_direi)
-        #cv.imshow("Faixa lida na direita",img_esque)
-        #cv.waitKey()
-        #cv.destroyWindow("Faixa lida na esquerda")
-        #cv.destroyWindow("Faixa lida na direita")
+    cv.imshow("Faixa lida na esquerda",img_direi)
+    cv.waitKey()
+    cv.destroyWindow("Faixa lida na esquerda")
+    cv.imshow("Faixa lida na direita",img_esque)
+    cv.waitKey()
+    cv.destroyWindow("Faixa lida na direita")
     for i in range(0,a,2):#step=2 se faz necessario? um intervalo de 2 pixel tambem?
         #Adiciona a posicao y listas para fazer a regressao linear
         y_esque.append(YdaImagem(imagem[:,i:i+2]))
@@ -138,7 +149,7 @@ def MediaDeLados(imagem): #Informa qual o y inicial, y final e a angulacao do su
     #Calcular angulacao da reta para rotacionar imagem ate que m = 0
     return y_zero,y_final,series[0]
 
-def IsolarLinhaDivisoria(imagem): #Retorna area acima e abaixo da linha do subtrato
+def LinhaMedia(imagem):
     #Isola parte de interesse
     kernel = np.ones((3,3),np.uint8)
     ret,divisaonomeio = cv.threshold(imagem,33,255,cv.ADAPTIVE_THRESH_MEAN_C)
@@ -146,13 +157,18 @@ def IsolarLinhaDivisoria(imagem): #Retorna area acima e abaixo da linha do subtr
     #Pega medidas da imagem para construcao da linha: w, y1 e y2
     a,x,y,w,h = CalculoImagemSemDesenho(divisaonomeio)
     y1,y2,m = MediaDeLados(divisaonomeio)
+    return w, y1, y2
+
+def SeparaAreasDeClad(imagem): #Retorna area acima e abaixo da linha do subtrato
+    #Isola parte de interesse
+    w, y1, y2 = LinhaMedia(imagem)
     #Ambas areas partem da Blob central
     Arev = IsolarBlob(imagem)
     Apen = IsolarBlob(imagem)
     #Desenhamos uma linha um pouco mais abaixo (somando pixels a sua posicao Y) para Arev
-    cv.line(Arev,(0,y1+4),(w,y2+4),(0,0,0),2)
+    cv.line(Arev,(0,y1+2),(w,y2+2),(0,0,0),2)
     #e uma linha um pouco mais acima (subtraindo pixels da sua posicao Y) para Apen
-    cv.line(Apen,(0,y1-1),(w,y2-1),(0,0,0),2)
+    cv.line(Apen,(0,y1),(w,y2),(0,0,0),2)
     #PROBLEMA DA ROTACAO
         #cv.imshow("teste sem rotacao",divisaonomeio)
         #print("inicial: ",y1,y2,m)
@@ -166,6 +182,7 @@ def IsolarLinhaDivisoria(imagem): #Retorna area acima e abaixo da linha do subtr
         #cv.waitKey()
     return Arev,Apen
 
+
 #*************************************Main*************************************
 def Main(): #Pre-filtra, extrai partes de interesse, filtra, mede e desenha.
     global img_
@@ -178,9 +195,18 @@ def Main(): #Pre-filtra, extrai partes de interesse, filtra, mede e desenha.
     cv.waitKey()
     cv.destroyWindow("Imagem com pre-filtro")
     #Isola Area de Revestimento da Area de Penetração
-    areaDeRevestimento,areaDePenetracao = IsolarLinhaDivisoria(filtrado)
+    areaDeRevestimento,areaDePenetracao = SeparaAreasDeClad(filtrado)
+    cv.imshow("Revestimento",areaDeRevestimento)
+    cv.waitKey()
+    cv.destroyWindow("Revestimento")
+    cv.imshow("Penetracao",areaDePenetracao)
+    cv.waitKey()
+    cv.destroyWindow("Penetracao")
     #Isola Area da zona termicamente afetada
     areaZonaTermicamenteAfetada = IsolarAreaZTA(filtrado)
+    cv.imshow("ZTA",areaZonaTermicamenteAfetada)
+    cv.waitKey()
+    cv.destroyWindow("ZTA")
     #Transformacoes morfologicas para obter um formato genérico
         #Opening aplica uma erosao seguida de dilatacao, remove ruidos
     kernel = np.ones((3,3),np.uint8)
@@ -189,9 +215,9 @@ def Main(): #Pre-filtra, extrai partes de interesse, filtra, mede e desenha.
     areaDePenetracao = cv.morphologyEx(areaDePenetracao, cv.MORPH_OPEN, kernel)
     #Rotular e classificar as areas na imagem
     #Arev(1), Apen(2), Azta(3)
-    a1,x1,y1,w1,h1 = CalculoImagem(areaDeRevestimento)
-    a2,x2,y2,w2,h2 = CalculoImagemPeq(areaDePenetracao)
-    a3,x3,y3,w3,h3 = CalculoImagem(areaZonaTermicamenteAfetada)
+    a1,x1,y1,w1,h1 = CalculoImagem(areaDeRevestimento,"blue")
+    a2,x2,y2,w2,h2 = CalculoImagemPeq(areaDePenetracao,"green")
+    a3,x3,y3,w3,h3 = CalculoImagem(areaZonaTermicamenteAfetada,"red")
     #Corte da imagem de referência
     xb,yb,wb,hb = CorteEscala(img_)
     #Calcula valores para conversao pixel-mm
@@ -205,7 +231,8 @@ def Main(): #Pre-filtra, extrai partes de interesse, filtra, mede e desenha.
             #399 pixels - 1000 um<br>
         #16x
             #177pixels - 0.5mm
-    pixelparamicrometro = referencia/wb
+    #pixelparamicrometro = referencia/wb
+    pixelparamicrometro = 6.94444444444444445
     pixelmicroquadrado = pixelparamicrometro*pixelparamicrometro
     #prints bonitos
     print("Largura da barra: "+str(wb)+" pixels")
@@ -217,14 +244,39 @@ def Main(): #Pre-filtra, extrai partes de interesse, filtra, mede e desenha.
 
 #*************************************INTERFACE*************************************
 def  Interface():       #
-    global img_
+    global img_; global img
     winname = "Menu"
     cv.imshow(winname, img_)
     k = cv.waitKey()
     if k == 49:        #Se apertar 1: 
+        print("Imagem numero 4")
         Main()
         cv.destroyWindow("Menu")
-    # elif k == 50:      #Se apertar 2: 
+    elif k == 50:      #Se apertar 2: 
+        img = cv.imread('Digimetal/2018.07.03 - A10- 12X - esc .tif')
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        print("Imagem numero 10")
+        Main()
+    elif k == 51:      #Se apertar 3: 
+        img = cv.imread("Digimetal/2018.07.03 - A23- 12X - esc .tif")
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        print("Imagem numero 23")
+        Main()
+    elif k == 52:      #Se apertar 4: 
+        img = cv.imread("Digimetal/2018.07.03 - A28- 12X - esc .tif")
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        print("Imagem numero 28")
+        Main()
+    elif k == 53:      #Se apertar 5: 
+        img = cv.imread("/Users/Gabiru/Documents/Digimetal/2018.07.03 - A28- 12X - esc .tif")
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        print("Imagem numero 30")
+        Main()
+    elif k == 54:      #Se apertar 6: 
+        img = cv.imread("Digimetal/2018.07.03 - A45- 12X - esc .tif")
+        img_ = cv.resize(img, (0,0), fx=0.4, fy=0.4)
+        print("Imagem numero 45")
+        Main()
     else:              #Se apertar qualquer tecla: imprime a tecla 
         print("Selecione um comando válido! Você digitou: "+str(k))
         cv.destroyWindow("Menu")
